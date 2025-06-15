@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -36,12 +38,31 @@ def plot_stock_data(data, ticker):
     plt.show()
 
 if __name__ == "__main__":
-    # Example: Fetch and plot Apple stock data
-    ticker = input("Enter the stock ticker symbol: ")
-    data = fetch_stock_data(ticker)
-    print(f"\nFetched {len(data)} days of data for {ticker}")
-    print("\nFirst few rows of data:")
-    print(data.head())
-    
-    # Plot the data
-    plot_stock_data(data, ticker) 
+    while True:
+        print("\n" + "="*50)
+        print("Stock Data Analysis Tool")
+        print("="*50)
+        print("Enter 'q' or 'quit' to exit the program")
+        
+        ticker = input("\nEnter the stock ticker symbol: ").strip().upper()
+        
+        if ticker.lower() in ['q', 'quit']:
+            print("\nThank you for using the Stock Data Analysis Tool!")
+            break
+            
+        try:
+            data = fetch_stock_data(ticker)
+            if data.empty:
+                print(f"\nNo data found for ticker symbol: {ticker}")
+                continue
+                
+            print(f"\nFetched {len(data)} days of data for {ticker}")
+            print("\nFirst few rows of data:")
+            print(data.head())
+            
+            # Plot the data
+            plot_stock_data(data, ticker)
+            
+        except Exception as e:
+            print(f"\nError fetching data for {ticker}: {str(e)}")
+            print("Please check if the ticker symbol is correct and try again.") 
