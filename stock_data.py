@@ -6,9 +6,42 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.io as pio
 from pandas.tseries.offsets import BDay
+import numpy as np
 
 # Set Plotly theme to dark
 pio.templates.default = "plotly_dark"
+
+def calculate_technical_indicators(data):
+    """
+    Calculate technical indicators for the stock data
+    
+    Parameters:
+    data (pandas.DataFrame): Stock data
+    
+    Returns:
+    pandas.DataFrame: Data with technical indicators
+    """
+    # Calculate RSI
+    delta = data['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    data['RSI'] = 100 - (100 / (1 + rs))
+    
+    # Calculate MACD
+    exp1 = data['Close'].ewm(span=12, adjust=False).mean()
+    exp2 = data['Close'].ewm(span=26, adjust=False).mean()
+    data['MACD'] = exp1 - exp2
+    data['Signal_Line'] = data['MACD'].ewm(span=9, adjust=False).mean()
+    data['MACD_Histogram'] = data['MACD'] - data['Signal_Line']
+    
+    # Calculate Bollinger Bands
+    data['20MA'] = data['Close'].rolling(window=20).mean()
+    data['20STD'] = data['Close'].rolling(window=20).std()
+    data['Upper_Band'] = data['20MA'] + (data['20STD'] * 2)
+    data['Lower_Band'] = data['20MA'] - (data['20STD'] * 2)
+    
+    return data
 
 def fetch_stock_data(ticker, period="1y"):
     """
@@ -27,6 +60,9 @@ def fetch_stock_data(ticker, period="1y"):
     # Filter out weekends and holidays (only keep business days)
     data = data[data.index.isin(pd.date_range(data.index[0], data.index[-1], freq='B'))]
     
+    # Calculate technical indicators
+    data = calculate_technical_indicators(data)
+    
     return data
 
 def plot_stock_data(data, ticker):
@@ -38,11 +74,11 @@ def plot_stock_data(data, ticker):
     ticker (str): Stock ticker symbol
     """
     # Create figure with secondary y-axis
-    fig = make_subplots(rows=2, cols=1, 
+    fig = make_subplots(rows=4, cols=1, 
                        shared_xaxes=True,
                        vertical_spacing=0.05,
-                       row_heights=[0.7, 0.3],
-                       subplot_titles=(f'{ticker} Stock Price', 'Trading Volume'))
+                       row_heights=[0.4, 0.2, 0.2, 0.2],
+                       subplot_titles=(f'{ticker} Stock Price', 'RSI', 'MACD', 'Trading Volume'))
 
     # Add candlestick chart
     fig.add_trace(go.Candlestick(x=data.index,
@@ -56,6 +92,44 @@ def plot_stock_data(data, ticker):
                                 hoverinfo='all'),
                   row=1, col=1)
 
+    # Add Bollinger Bands
+    fig.add_trace(go.Scatter(x=data.index, y=data['Upper_Band'],
+                            name='Upper BB',
+                            line=dict(color='rgba(255, 255, 255, 0.3)', width=1),
+                            opacity=0.5),
+                  row=1, col=1)
+    fig.add_trace(go.Scatter(x=data.index, y=data['Lower_Band'],
+                            name='Lower BB',
+                            line=dict(color='rgba(255, 255, 255, 0.3)', width=1),
+                            opacity=0.5),
+                  row=1, col=1)
+
+    # Add RSI
+    fig.add_trace(go.Scatter(x=data.index, y=data['RSI'],
+                            name='RSI',
+                            line=dict(color='#2196F3', width=1)),
+                  row=2, col=1)
+    # Add RSI levels
+    fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
+    fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
+
+    # Add MACD
+    fig.add_trace(go.Scatter(x=data.index, y=data['MACD'],
+                            name='MACD',
+                            line=dict(color='#2196F3', width=1)),
+                  row=3, col=1)
+    fig.add_trace(go.Scatter(x=data.index, y=data['Signal_Line'],
+                            name='Signal Line',
+                            line=dict(color='#FF9800', width=1)),
+                  row=3, col=1)
+    # Add MACD Histogram
+    colors = ['#ef5350' if val < 0 else '#26a69a' for val in data['MACD_Histogram']]
+    fig.add_trace(go.Bar(x=data.index, y=data['MACD_Histogram'],
+                        name='MACD Histogram',
+                        marker_color=colors,
+                        opacity=0.7),
+                  row=3, col=1)
+
     # Add volume bar chart
     colors = ['#ef5350' if row['Open'] > row['Close'] else '#26a69a' 
               for index, row in data.iterrows()]
@@ -66,7 +140,7 @@ def plot_stock_data(data, ticker):
                         marker_color=colors,
                         opacity=0.7,
                         hovertemplate="Date: %{x}<br>Volume: %{y:,}<extra></extra>"),
-                  row=2, col=1)
+                  row=4, col=1)
 
     # Add moving averages
     for window, color in [(50, '#FF9800'), (252, '#2196F3')]:  # 50-day and 52-week (252 trading days) MA
@@ -90,7 +164,7 @@ def plot_stock_data(data, ticker):
             yanchor='top',
             font=dict(size=24, color='white')
         ),
-        height=900,
+        height=1200,  # Increased height to accommodate new indicators
         template='plotly_dark',
         showlegend=True,
         legend=dict(
@@ -120,8 +194,27 @@ def plot_stock_data(data, ticker):
     )
     
     fig.update_yaxes(
-        title_text="Volume",
+        title_text="RSI",
         row=2,
+        col=1,
+        title_font=dict(size=14, color='white'),
+        gridcolor='#333333',
+        zerolinecolor='#333333',
+        range=[0, 100]
+    )
+    
+    fig.update_yaxes(
+        title_text="MACD",
+        row=3,
+        col=1,
+        title_font=dict(size=14, color='white'),
+        gridcolor='#333333',
+        zerolinecolor='#333333'
+    )
+    
+    fig.update_yaxes(
+        title_text="Volume",
+        row=4,
         col=1,
         title_font=dict(size=14, color='white'),
         gridcolor='#333333',
