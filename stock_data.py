@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.io as pio
+from pandas.tseries.offsets import BDay
 
 # Set Plotly theme to dark
 pio.templates.default = "plotly_dark"
@@ -22,6 +23,10 @@ def fetch_stock_data(ticker, period="1y"):
     """
     stock = yf.Ticker(ticker)
     data = stock.history(period=period)
+    
+    # Filter out weekends and holidays (only keep business days)
+    data = data[data.index.isin(pd.date_range(data.index[0], data.index[-1], freq='B'))]
+    
     return data
 
 def plot_stock_data(data, ticker):
@@ -155,7 +160,7 @@ if __name__ == "__main__":
                 print(f"\nNo data found for ticker symbol: {ticker}")
                 continue
                 
-            print(f"\nFetched {len(data)} days of data for {ticker}")
+            print(f"\nFetched {len(data)} trading days of data for {ticker}")
             print("\nFirst few rows of data:")
             print(data.head())
             
